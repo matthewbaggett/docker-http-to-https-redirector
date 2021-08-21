@@ -1,0 +1,16 @@
+version: "3.4"
+services:
+  redirector:
+    build:
+      context: .
+      target: redirector
+    image: matthewbaggett/http-to-https-redirector
+    ports:
+      - "127.0.0.254:80:80"
+
+  example:
+    build:
+      context: .
+      target: example-app
+    ports:
+        - "127.0.0.254:443:443"
