@@ -2,102 +2,9 @@ name: Build -> Test -> Publish Pipeline
 on: [push]
 jobs:
 
-  lint:
-    name: Code Linting
-    runs-on: ubuntu-20.04
-    if: "! contains(toJSON(github.event.commits.*.msg), '[skip-ci]')"
-    strategy:
-      fail-fast: false
-      matrix:
-        linter:
-          - lint-dockerfiles
-          - lint-twigcs
-          - lint-php-cs-fixer
-          - lint-terraform
-    steps:
-      - uses: actions/checkout@v2
-      - name: Run make ${{ matrix.linter }}
-        run: make ${{ matrix.linter }}
-
-  lint-with-composer:
-    name: Code Linting
-    runs-on: ubuntu-20.04
-    if: "! contains(toJSON(github.event.commits.*.msg), '[skip-ci]')"
-    strategy:
-      fail-fast: false
-      matrix:
-        linter:
-          - lint-phpstan
-    steps:
-      - uses: actions/checkout@v2
-      - uses: php-actions/composer@v5
-        with:
-          php_version: 8.0
-          dev: yes
-          args: --ignore-platform-reqs --no-scripts
-      - name: Run make ${{ matrix.linter }}
-        run: make ${{ matrix.linter }}
-
-  unit-tests:
-    name: PHPUnit Tests
-    needs: [lint, lint-with-composer]
-    runs-on: ubuntu-20.04
-    strategy:
-      fail-fast: false
-      matrix:
-        testsuite:
-          #- Api
-          - Models
-          - Services
-          - Selenium
-    steps:
-      - uses: actions/checkout@v2
-      - uses: php-actions/composer@v5
-        with:
-          php_version: 8.0
-          dev: yes
-          args: --ignore-platform-reqs --no-scripts
-      - name: Setup QEMU
-        uses: docker/setup-qemu-action@v1
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v1
-      - name: Docker Buildx Bake
-        uses: crazy-max/ghaction-docker-buildx-bake@v1
-        with:
-          push: false
-          load: true
-          targets: web,worker
-      - name: Make sure theres no lingering containers
-        run: |
-          docker-compose -p test-vpnondemand-${GITHUB_RUN_ID}-${{ matrix.testsuite }}  \
-            down -v
-      - name: Wake up Selenium
-        run: |
-          docker-compose -p test-vpnondemand-${GITHUB_RUN_ID}-${{ matrix.testsuite }}  \
-          up -d selenium
-      - name: Pre-run Migrator
-        run: |
-          docker-compose -p test-vpnondemand-${GITHUB_RUN_ID}-${{ matrix.testsuite }}  \
-            run migrator
-      - name: PHPUnit/${{ matrix.testsuite }}
-        run: |
-          docker-compose -p test-vpnondemand-${GITHUB_RUN_ID}-${{ matrix.testsuite }} \
-            run --no-deps web \
-              vendor/bin/phpunit --testsuite=${{ matrix.testsuite }}
-      - name: Cleanup
-        run: |
-          docker-compose -p test-vpnondemand-${GITHUB_RUN_ID}-${{ matrix.testsuite }} \
-            down -v
-
   build:
     name: "Build (& Publish)"
-    needs: [unit-tests]
     runs-on: ubuntu-20.04
-    strategy:
-      matrix:
-        container:
-          - web
-          - worker
     steps:
       - uses: actions/checkout@v2
       - uses: php-actions/composer@v5
@@ -119,28 +26,8 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          tags: ghcr.io/vpn-on-demand/vpn-on-demand:${{ matrix.container }}
-          target: ${{ matrix.container }}
+          tags: ghcr.io/matthewbaggett/http-to-https-redirector
+          target: redirector
           platforms: linux/amd64,linux/arm64
           context: .
           file: ./Dockerfile
-
-#  terraform:
-#    name: "Terraform"
-#    needs: [build]
-#    runs-on: ubuntu-20.04
-#    steps:
-#      - uses: actions/checkout@v2
-#      - uses: hashicorp/setup-terraform@v1
-#      - name: Initialise
-#        run: |
-#          terraform -chdir=.terraform/infrastructure init
-#          terraform -chdir=.terraform/software init
-#      - name: Validate
-#        run: |
-#          terraform -chdir=.terraform/infrastructure validate -no-color
-#          terraform -chdir=.terraform/software validate -no-color
-#      - name: Plan
-#        run: |
-#          terraform -chdir=.terraform/infrastructure plan -out infra.plan
-#          terraform -chdir=.terraform/software plan -out software.plan
