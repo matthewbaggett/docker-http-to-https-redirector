@@ -4,7 +4,7 @@ services:
     build:
       context: .
       target: redirector
-    image: matthewbaggett/http-to-https-redirector
+    image: ghcr.io/matthewbaggett/http-to-https-redirector
     ports:
       - "127.0.0.254:80:80"
 

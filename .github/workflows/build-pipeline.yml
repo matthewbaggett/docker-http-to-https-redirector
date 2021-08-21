@@ -7,11 +7,6 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
-      - uses: php-actions/composer@v5
-        with:
-          php_version: 8.0
-          dev: no
-          args: --ignore-platform-reqs --no-scripts
       - name: Setup QEMU
         uses: docker/setup-qemu-action@v1
       - name: Setup Docker Buildx
